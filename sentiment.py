@@ -36,12 +36,12 @@ def load_data(in_data_file):
     #print(x_vect.sample(n=5))
     #print(type(x_vect))
     x_vect = scipy.sparse.csr_matrix(x_vect)
-    x_vector = tfidf_vectorize(d_x)
-    #print(type(x_vector))
+    #x_vector = tfidf_vectorize(d_x)
+    #print(x_vect.shape)
     print("1111111")
-    k_neighbor(x_vector, d_y)
-    #svm(x_vect, d_y)
-    #decision_tree(x_vect, d_y)
+    k_neighbor(x_vect, d_y)
+    svm(x_vect, d_y)
+    decision_tree(x_vect, d_y)
     # cp_in_data = remove_stopwords(cp_in_data)
 
 
@@ -60,6 +60,14 @@ def remove_stopwords(cp_in_data):
 '''
 def myFunc(myData):
     
+    tfidf = TfidfVectorizer()
+    x_vec = tfidf.fit_transform(myData.text)
+    #print(x_vec.shape)
+    #print("Features:",tfidf.get_feature_names())
+    #idf_sum = [sum(x_vec[i]) for i in range(3602)]
+    idf_sum = x_vec.sum(axis=1)
+    #print(idf_sum.shape)
+    
     #split term_location into start and end
     #print(data.sample(n=5))
     aspect_st = []
@@ -76,8 +84,9 @@ def myFunc(myData):
     myData["aspect_start"] = aspect_st
     myData["aspect_end"] = aspect_end
     myData["text_len"] = textLen
+    myData["idf_score"] = idf_sum
     #print(data.sample(n=5))
-    return myData[["aspect_start","aspect_end","text_len"]]
+    return myData[["aspect_start","aspect_end","text_len", "idf_score"]]
     
 
 def k_neighbor(x, y):
@@ -170,6 +179,7 @@ def tfidf_vectorize(d_x):
     tfidf = TfidfVectorizer()
     x_vec = tfidf.fit_transform(d_x)
     #print("Features:",tfidf.get_feature_names())
+    #idf_sum = [sum(x_vec[i]) for i in range(3602)]
     # x_traincv_array = x_vec.toarray()
     return x_vec
 

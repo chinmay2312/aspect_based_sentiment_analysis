@@ -15,6 +15,7 @@ from nltk.tokenize import word_tokenize, RegexpTokenizer
 from nltk.corpus import stopwords
 #import enchant
 import re
+import scipy
 
 re_tokenize = RegexpTokenizer("[\w']+")
 #checker = enchant.Dict("en_US")
@@ -33,11 +34,12 @@ def load_data(in_data_file):
     d_y = data["class"]
     x_vect = myFunc(data[["text","aspect_term","term_location"]])
     #print(x_vect.sample(n=5))
-    print(type(x_vect))
+    #print(type(x_vect))
+    x_vect = scipy.sparse.csr_matrix(x_vect)
     x_vector = tfidf_vectorize(d_x)
-    print(type(x_vector))
+    #print(type(x_vector))
     print("1111111")
-    #k_neighbor(x_vector, d_y)
+    k_neighbor(x_vector, d_y)
     #svm(x_vect, d_y)
     #decision_tree(x_vect, d_y)
     # cp_in_data = remove_stopwords(cp_in_data)

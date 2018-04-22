@@ -11,14 +11,17 @@ from sklearn.svm import LinearSVC
 from sklearn.neighbors import KNeighborsClassifier
 import nltk
 from nltk.tokenize import word_tokenize, RegexpTokenizer
+from nltk.stem.porter import PorterStemmer
+from nltk.stem import WordNetLemmatizer
 # from nltk.tokenize.moses import MosesDetokenizer
 from nltk.corpus import stopwords
-#import enchant
+# import enchant
 import re
 import scipy
 
 re_tokenize = RegexpTokenizer("[\w']+")
-#checker = enchant.Dict("en_US")
+wnl = WordNetLemmatizer()
+# checker = enchant.Dict("en_US")
 stop_words = set(stopwords.words('english'))
 in_data_file = "data2_train.csv"
 
@@ -28,17 +31,13 @@ def load_data(in_data_file):
     data.text = data.text.str.replace("\[comma\]", ",")
     # data = in_data.copy(deep=True)
     data.text = data["text"].apply(remove_tags)
-    #data = stemming(data)
-    print("12323456789")
+    data = stemming_and_lemmatization(data)
     d_x = data.text
     d_y = data["class"]
     x_vect = myFunc(data[["text","aspect_term","term_location"]])
-    #print(x_vect.sample(n=5))
-    #print(type(x_vect))
     x_vect = scipy.sparse.csr_matrix(x_vect)
-    #x_vector = tfidf_vectorize(d_x)
-    #print(x_vect.shape)
-    print("1111111")
+    # x_vector = tfidf_vectorize(d_x)
+    # print(x_vect.shape)
     k_neighbor(x_vect, d_y)
     svm(x_vect, d_y)
     decision_tree(x_vect, d_y)
@@ -102,7 +101,6 @@ def k_neighbor(x, y):
         knn.fit(x_train, y_train)
         y_pred = knn.predict(x_test)
         accuracy_list.append(knn.score(x_test, y_test))
-        print("#######################")
         cm = confusion_matrix(y_test, y_pred)
         tp = cm[0][0]
         tn = cm[2][2]
@@ -117,7 +115,6 @@ def k_neighbor(x, y):
         # print(precision)
         # precision_score()
 
-    print("*********************************")
     accuracy = np.mean(accuracy_list)
     precision = np.mean(precision_list)
     recall = np.mean(recall_list)
@@ -139,10 +136,8 @@ def decision_tree(x, y):
         dtree.fit(x_train, y_train)
         y_pred = dtree.predict(x_test)
         accuracy_list.append(dtree.score(x_test, y_test))
-        print("#######################")
         cm = confusion_matrix(y_test, y_pred)
         print(cm)
-    print("*********************************")
     accuracy = np.mean(accuracy_list)
     # precision = np.mean(precision_list)
     # recall = np.mean(recall_list)
@@ -163,10 +158,8 @@ def svm(x, y):
         svc.fit(x_train, y_train)
         y_pred = svc.predict(x_test)
         accuracy_list.append(svc.score(x_test, y_test))
-        print("#######################")
         cm = confusion_matrix(y_test, y_pred)
         print(cm)
-    print("*********************************")
     accuracy = np.mean(accuracy_list)
     # precision = np.mean(precision_list)
     # recall = np.mean(recall_list)
@@ -178,8 +171,8 @@ def svm(x, y):
 def tfidf_vectorize(d_x):
     tfidf = TfidfVectorizer()
     x_vec = tfidf.fit_transform(d_x)
-    #print("Features:",tfidf.get_feature_names())
-    #idf_sum = [sum(x_vec[i]) for i in range(3602)]
+    # print("Features:",tfidf.get_feature_names())
+    # idf_sum = [sum(x_vec[i]) for i in range(3602)]
     # x_traincv_array = x_vec.toarray()
     return x_vec
 
@@ -188,6 +181,11 @@ def tokenize(cp_in_data):
     cp_in_data["text"] = cp_in_data["text"].apply(lambda row: word_tokenize(row))
     return cp_in_data
 
+
+def do_re_tokenize(row):
+    #for x in data['text']:
+    x = re_tokenize.tokenize(row)
+    return x
 
 def remove_tags(row):
     row = str(row)
@@ -200,15 +198,17 @@ def remove_tags(row):
     return cleantext
 
 
-def stemming(temp_df):
+def stemming_and_lemmatization(data_stem):
     # PORTER STEMMER
     print("Porter Stemmer")
-    porter_stemmer = nltk.stem.PorterStemmer()
-    for i, text in enumerate(temp_df.text):
-        words = word_tokenize(text)
-        for j, word in enumerate(words):
-            words[j] = porter_stemmer.stem(word)
-        temp_df.loc[i, "text"] = ' '.join(words)
+    porter_stemmer = PorterStemmer()
+    data_stem["text"] = data_stem["text"].apply(do_re_tokenize)
+    data_stem['text'] = data_stem['text'].apply(lambda x: [porter_stemmer.stem(y) for y in x])
+    data_stem["text"] = data_stem["text"].apply(lambda x: [wnl.lemmatize(y) for y in x])
+    data_stem["text"] = data_stem["text"].apply(lambda x: " ".join(x))
+    print(data_stem["text"])
+    import time
+    time.sleep(100)
     return temp_df
 
 

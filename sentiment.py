@@ -101,18 +101,18 @@ def calcAdjFeature(myData):
                 break
             
             if dist < minDist:
-                #minDist = dist
-                #near_adj = str
+                minDist = dist
+                near_adj = str
                 if str in posWords:
                     adj_class= +1 #Positive
-                    minDist = dist
-                    near_adj = str
+                    #minDist = dist
+                    #near_adj = str
                 elif str in negWords:
                     adj_class= -1 #Negative
-                    minDist = dist
-                    near_adj = str
-                #else:
-                #    adj_class= 0  #Neutral
+                    #minDist = dist
+                    #near_adj = str
+                else:
+                    adj_class= 0  #Neutral
         adjClass.append(adj_class)
         nearest_adj.append(near_adj)
         adj_dist.append(minDist)

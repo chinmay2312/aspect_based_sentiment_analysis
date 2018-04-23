@@ -29,6 +29,7 @@ in_data_file = "data2_train.csv"
 def load_data(in_data_file):
     data = pd.read_csv(in_data_file, skipinitialspace=True)
     data.text = data.text.str.replace("\[comma\]", ",")
+    data.aspect_term = data.aspect_term.str.replace("\[comma\]", ",")
     # data = in_data.copy(deep=True)
     #data.text = data["text"].apply(remove_tags)
     data = stemming_and_lemmatization(data)
@@ -120,7 +121,7 @@ def calcAdjFeature(myData):
     myData["adj_class"] = adjClass
     myData["adj_dist"] = adj_dist
     
-    return myData[["aspect_start","aspect_end","text_len","adj_class","adj_dist"]]
+    return myData[["aspect_start","aspect_end","text_len","adj_class","adj_dist","idf_score"]]
 
 
 def myFunc(myData):
@@ -175,7 +176,7 @@ def myFunc(myData):
     myData["idf_score"] = idf_sum
     
     #print(data.sample(n=5))
-    return myData[["text","aspect_term","term_location","aspect_start","aspect_end","text_len"]]#, "idf_score"]]
+    return myData[["text","aspect_term","term_location","aspect_start","aspect_end","text_len", "idf_score"]]
         
 
 def k_neighbor(x, y):

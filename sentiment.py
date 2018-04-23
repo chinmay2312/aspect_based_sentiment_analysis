@@ -30,17 +30,19 @@ def load_data(in_data_file):
     data = pd.read_csv(in_data_file, skipinitialspace=True)
     data.text = data.text.str.replace("\[comma\]", ",")
     # data = in_data.copy(deep=True)
-    data.text = data["text"].apply(remove_tags)
+    #data.text = data["text"].apply(remove_tags)
     data = stemming_and_lemmatization(data)
+    print("Data loaded and preprocessed")
     d_x = data.text
     d_y = data["class"]
-    x_vect = myFunc(data[["text","aspect_term","term_location"]])
+    x_vect = myFunc(data)#[["text","aspect_term","term_location"]])
+    x_vect = calcAdjFeature(x_vect)
     x_vect = scipy.sparse.csr_matrix(x_vect)
     # x_vector = tfidf_vectorize(d_x)
     # print(x_vect.shape)
-    k_neighbor(x_vect, d_y)
+    #k_neighbor(x_vect, d_y)
     svm(x_vect, d_y)
-    decision_tree(x_vect, d_y)
+    #decision_tree(x_vect, d_y)
     # cp_in_data = remove_stopwords(cp_in_data)
 
 
@@ -57,14 +59,78 @@ def remove_stopwords(cp_in_data):
     cp_in_data["text"] = cp_in_data["text"].apply(lambda row: detokenizer.detokenize(row, return_str=True))
     return cp_in_data
 '''
+
+def calcAdjFeature(myData):
+    text_file = open("pos_words.txt", "r")
+    posWords = text_file.read().split('\n')
+    text_file = open("neg_words.txt", "r")
+    negWords = text_file.read().split('\n')
+    
+    adjClass = []
+    adj_dist = []
+    nearest_adj = []
+    
+    for id,row in myData.iterrows():
+        minDist = len(row['text'])
+        
+        #print("text: ",row['text'])
+        #print("aspect: ",row['aspect_term'])
+        term_start = int(re.split('--',row['term_location'])[0])
+        term_end = int(re.split('--',row['term_location'])[1])
+        #print("start: ",term_start, " end: ",term_end)
+        for str in word_tokenize(row['text']):
+            
+            #print("str: ",str,"\t index:",row['text'].index(str))
+            
+            if row['text'].index(str) >= term_start and row['text'].index(str) < term_end:
+                continue
+            
+            try:
+                dist = abs(row['text'].index(str) - row['text'].index(row['aspect_term']))
+            except ValueError:
+                print("Aspect Term missing in Text")
+                print("id: ",id)
+                print("text: ",row['text'])
+                print("aspect: ",row['aspect_term'])
+              #  print("start: ",term_start, " end: ",term_end)
+            #finally:
+                adj_class =0
+                minDist = len(row['text'])
+                near_adj = str
+                break
+            
+            if dist < minDist:
+                #minDist = dist
+                #near_adj = str
+                if str in posWords:
+                    adj_class= +1 #Positive
+                    minDist = dist
+                    near_adj = str
+                elif str in negWords:
+                    adj_class= -1 #Negative
+                    minDist = dist
+                    near_adj = str
+                #else:
+                #    adj_class= 0  #Neutral
+        adjClass.append(adj_class)
+        nearest_adj.append(near_adj)
+        adj_dist.append(minDist)
+        
+    myData["nearest_adj"] = nearest_adj
+    myData["adj_class"] = adjClass
+    myData["adj_dist"] = adj_dist
+    
+    return myData[["aspect_start","aspect_end","text_len","adj_class","adj_dist"]]
+
+
 def myFunc(myData):
     
-    tfidf = TfidfVectorizer()
-    x_vec = tfidf.fit_transform(myData.text)
+    tfidf = TfidfVectorizer(use_idf=True)
+    #x_vec = tfidf.fit_transform(myData.text)
     #print(x_vec.shape)
     #print("Features:",tfidf.get_feature_names())
     #idf_sum = [sum(x_vec[i]) for i in range(3602)]
-    idf_sum = x_vec.sum(axis=1)
+    #idf_sum = x_vec.sum(axis=1)
     #print(idf_sum.shape)
     
     #split term_location into start and end
@@ -72,6 +138,7 @@ def myFunc(myData):
     aspect_st = []
     aspect_end = []
     textLen = []
+    senseText = []
     #print(data["term_location"])
     for id,row in myData.iterrows():
         aspect_locs = re.split('--',row['term_location'])
@@ -80,13 +147,36 @@ def myFunc(myData):
         textLen.append(text_len)
         aspect_st.append(int(aspect_locs[0])/text_len)
         aspect_end.append(int(aspect_locs[1])/text_len)
+        
+        word_tokens = word_tokenize(row['text'])
+        filtered_sentence = ''
+        for w in word_tokens:
+            if w not in stop_words:
+                filtered_sentence = filtered_sentence + ' ' + w
+        senseText.append(filtered_sentence.strip())
+    
     myData["aspect_start"] = aspect_st
     myData["aspect_end"] = aspect_end
     myData["text_len"] = textLen
-    myData["idf_score"] = idf_sum
-    #print(data.sample(n=5))
-    return myData[["aspect_start","aspect_end","text_len", "idf_score"]]
     
+    myData["sense_text"] = senseText
+    #print(senseText[:5])
+    
+    x_vec = tfidf.fit_transform(myData.sense_text)
+    #print(x_vec[0])
+    #print(tfidf.inverse_transform(x_vec)[0])
+    #print(np.where(tfidf.inverse_transform(x_vec)[0] == 'staff')[0])
+    
+    #for id,row in myData.iterrows():    
+    
+    #print("Features:",tfidf.get_stop_words())
+    #print(tfidf['abbys'])
+    idf_sum = x_vec.sum(axis=1)
+    myData["idf_score"] = idf_sum
+    
+    #print(data.sample(n=5))
+    return myData[["text","aspect_term","term_location","aspect_start","aspect_end","text_len"]]#, "idf_score"]]
+        
 
 def k_neighbor(x, y):
     knn = KNeighborsClassifier(n_neighbors=100)

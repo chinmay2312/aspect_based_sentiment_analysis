@@ -34,7 +34,9 @@ def load_data(in_data_file):
     #data.text = data["text"].apply(remove_tags)
     data = stemming_and_lemmatization(data)
     print("Data loaded and preprocessed")
-    d_x = data.text
+    print(data)
+    import time
+    # d_x = data.text
     d_y = data["class"]
     x_vect = myFunc(data)#[["text","aspect_term","term_location"]])
     x_vect = calcAdjFeature(x_vect)
@@ -293,14 +295,18 @@ def stemming_and_lemmatization(data_stem):
     # PORTER STEMMER
     print("Porter Stemmer")
     porter_stemmer = PorterStemmer()
+
     data_stem["text"] = data_stem["text"].apply(do_re_tokenize)
     data_stem['text'] = data_stem['text'].apply(lambda x: [porter_stemmer.stem(y) for y in x])
     data_stem["text"] = data_stem["text"].apply(lambda x: [wnl.lemmatize(y) for y in x])
     data_stem["text"] = data_stem["text"].apply(lambda x: " ".join(x))
-    print(data_stem["text"])
-    import time
-    time.sleep(100)
-    return temp_df
+
+    data_stem["aspect_term"] = data_stem["aspect_term"].apply(do_re_tokenize)
+    data_stem['aspect_term'] = data_stem['aspect_term'].apply(lambda x: [porter_stemmer.stem(y) for y in x])
+    data_stem["aspect_term"] = data_stem["aspect_term"].apply(lambda x: [wnl.lemmatize(y) for y in x])
+    data_stem["aspect_term"] = data_stem["aspect_term"].apply(lambda x: " ".join(x))
+
+    return data_stem
 
 
 load_data(in_data_file)

@@ -29,6 +29,7 @@ in_data_file = "data2_train.csv"
 def load_data(in_data_file):
     data = pd.read_csv(in_data_file, skipinitialspace=True)
     data.text = data.text.str.replace("\[comma\]", ",")
+    data = to_lower(data)
     data.aspect_term = data.aspect_term.str.replace("\[comma\]", ",")
     # data = in_data.copy(deep=True)
     #data.text = data["text"].apply(remove_tags)
@@ -47,6 +48,12 @@ def load_data(in_data_file):
     svm(x_vect, d_y)
     #decision_tree(x_vect, d_y)
     # cp_in_data = remove_stopwords(cp_in_data)
+
+
+def to_lower(data):
+    data["text"] = data["text"].str.lower()
+    data["aspect_term"] = data["aspect_term"].str.lower()
+    return data
 
 
 '''

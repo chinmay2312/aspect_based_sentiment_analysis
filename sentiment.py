@@ -7,6 +7,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import KFold
 from sklearn.model_selection import cross_val_score, StratifiedKFold
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.naive_bayes import GaussianNB, BernoulliNB, MultinomialNB
 from sklearn.svm import LinearSVC
 from sklearn.neighbors import KNeighborsClassifier
 import nltk
@@ -35,9 +36,6 @@ def load_data(in_data_file):
     #data.text = data["text"].apply(remove_tags)
     data = stemming_and_lemmatization(data)
     print("Data loaded and preprocessed")
-    print(data)
-    import time
-    # d_x = data.text
     d_y = data["class"]
     x_vect = myFunc(data)#[["text","aspect_term","term_location"]])
     x_vect = calcAdjFeature(x_vect)
@@ -246,6 +244,28 @@ def decision_tree(x, y):
     # print("Recall for Decision Tree is : " + str(recall))
 
 
+def naive_bayes(x, y):
+    skf = StratifiedKFold(n_splits=10)
+    skf.get_n_splits(x)
+    accuracy_list = []
+
+    for train_index, test_index in skf.split(x, y):
+        gnb = MultinomialNB()
+        x_train, x_test = x[train_index], x[test_index]
+        y_train, y_test = y[train_index], y[test_index]
+        gnb.fit(x_train, y_train)
+        y_pred = gnb.predict(x_test)
+        accuracy_list.append(gnb.score(x_test, y_test))
+        cm = confusion_matrix(y_test, y_pred)
+        # print(cm)
+    accuracy = np.mean(accuracy_list)
+    # precision = np.mean(precision_list)
+    # recall = np.mean(recall_list)
+    print("Accuracy for nb is : " + str(accuracy))
+    # print("Precision for svc is : " + str(precision))
+    # print("Recall for svc is : " + str(recall))
+
+
 def svm(x, y):
     svc = LinearSVC()
     skf = StratifiedKFold(n_splits=10)
@@ -259,7 +279,7 @@ def svm(x, y):
         y_pred = svc.predict(x_test)
         accuracy_list.append(svc.score(x_test, y_test))
         cm = confusion_matrix(y_test, y_pred)
-        print(cm)
+        #print(cm)
     accuracy = np.mean(accuracy_list)
     # precision = np.mean(precision_list)
     # recall = np.mean(recall_list)
@@ -304,12 +324,12 @@ def stemming_and_lemmatization(data_stem):
     porter_stemmer = PorterStemmer()
 
     data_stem["text"] = data_stem["text"].apply(do_re_tokenize)
-    data_stem['text'] = data_stem['text'].apply(lambda x: [porter_stemmer.stem(y) for y in x])
+    #data_stem['text'] = data_stem['text'].apply(lambda x: [porter_stemmer.stem(y) for y in x])
     data_stem["text"] = data_stem["text"].apply(lambda x: [wnl.lemmatize(y) for y in x])
     data_stem["text"] = data_stem["text"].apply(lambda x: " ".join(x))
 
     data_stem["aspect_term"] = data_stem["aspect_term"].apply(do_re_tokenize)
-    data_stem['aspect_term'] = data_stem['aspect_term'].apply(lambda x: [porter_stemmer.stem(y) for y in x])
+    #data_stem['aspect_term'] = data_stem['aspect_term'].apply(lambda x: [porter_stemmer.stem(y) for y in x])
     data_stem["aspect_term"] = data_stem["aspect_term"].apply(lambda x: [wnl.lemmatize(y) for y in x])
     data_stem["aspect_term"] = data_stem["aspect_term"].apply(lambda x: " ".join(x))
 

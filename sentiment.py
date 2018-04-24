@@ -39,7 +39,7 @@ def load_data(in_data_file):
     # d_x = data.text
     d_y = data["class"]
     x_vect = myFunc(data)#[["text","aspect_term","term_location"]])
-    x_vect = calcAdjFeature(x_vect)
+    x_vect = calc_adj_feature(x_vect)
     x_vect = scipy.sparse.csr_matrix(x_vect)
     # x_vector = tfidf_vectorize(d_x)
     # print(x_vect.shape)
@@ -63,67 +63,112 @@ def remove_stopwords(cp_in_data):
     return cp_in_data
 '''
 
-def calcAdjFeature(myData):
+def calc_adj_feature(myData):
     text_file = open("pos_words.txt", "r")
     posWords = text_file.read().split('\n')
     text_file = open("neg_words.txt", "r")
     negWords = text_file.read().split('\n')
     
+    conjunctList = ['but', 'nor', 'yet', 'although', 'before', 'if', 'though', 'till', 'unless', 'until', 'what', 'whether', 'while']
+    
     adjClass = []
     adj_dist = []
     nearest_adj = []
+    posCount = []
+    negCount = []
+    subSentCounts = []
     
     for id,row in myData.iterrows():
         minDist = len(row['text'])
         
+        
+        myText = row['text']
+        myText2 = myText
+        
+        for word in word_tokenize(myText2):
+            if word in conjunctList:
+                myText2 = myText2.replace(word,"~")
+                
+        subSentCount = len(myText2.split('~'))
+                
+        for subText in myText2.split('~'):
+            if row['aspect_term'] in subText:
+                #print("Full text: ",myText)
+                #print("subText: ",subText)
+                #print("aspect:",row['aspect_term'])
+                myText = subText
+                break
+        
         #print("text: ",row['text'])
         #print("aspect: ",row['aspect_term'])
-        term_start = int(re.split('--',row['term_location'])[0])
-        term_end = int(re.split('--',row['term_location'])[1])
+        try:
+            term_start = myText.index(row['aspect_term'])#int(re.split('--',row['term_location'])[0])
+            term_end = term_start + len(row['aspect_term'])#int(re.split('--',row['term_location'])[1])
+        except:
+            term_start = int(re.split('--',row['term_location'])[0])
+            term_end = int(re.split('--',row['term_location'])[1])
         #print("start: ",term_start, " end: ",term_end)
-        for str in word_tokenize(row['text']):
+        neg_count =0
+        pos_count =0
+        for str in word_tokenize(myText):
             
             #print("str: ",str,"\t index:",row['text'].index(str))
-            
-            if row['text'].index(str) >= term_start and row['text'].index(str) < term_end:
-                continue
+            if str in posWords:
+                pos_count = pos_count +1
+            elif str in negWords:
+                neg_count = neg_count +1
             
             try:
-                dist = abs(row['text'].index(str) - row['text'].index(row['aspect_term']))
+                if myText.index(str) >= term_start and myText.index(str) < term_end:
+                    continue
+            except:
+                print("Error line 94")
+                print("text: ",myText)
+                print("str: ",str)
+                #print("index: ",row['text'].index(str))
+            
+            try:
+                dist = abs(myText.index(str) - myText.index(row['aspect_term']))
             except ValueError:
                 print("Aspect Term missing in Text")
                 print("id: ",id)
-                print("text: ",row['text'])
+                print("text: ",myText)
                 print("aspect: ",row['aspect_term'])
               #  print("start: ",term_start, " end: ",term_end)
             #finally:
                 adj_class =0
-                minDist = len(row['text'])
+                minDist = len(myText)
                 near_adj = str
                 break
             
             if dist < minDist:
-                minDist = dist
+                #minDist = dist
                 near_adj = str
                 if str in posWords:
                     adj_class= +1 #Positive
-                    #minDist = dist
+                    minDist = dist
                     #near_adj = str
                 elif str in negWords:
                     adj_class= -1 #Negative
-                    #minDist = dist
+                    minDist = dist
                     #near_adj = str
                 else:
                     adj_class= 0  #Neutral
         adjClass.append(adj_class)
         nearest_adj.append(near_adj)
         adj_dist.append(minDist)
+        posCount.append(pos_count)
+        negCount.append(neg_count)
+        subSentCounts.append(subSentCount)
         
-    myData["nearest_adj"] = nearest_adj
+    #myData["nearest_adj"] = nearest_adj
     myData["adj_class"] = adjClass
     myData["adj_dist"] = adj_dist
+    myData["posCount"] = posCount
+    myData["negCount"] = negCount
+    myData["subSentCounts"] = subSentCounts
     
-    return myData[["aspect_start","aspect_end","text_len","adj_class","adj_dist","idf_score"]]
+    return myData[["aspect_start","aspect_end","text_len","adj_class","adj_dist","posCount","negCount", "idf_score","idf_aspect"]]
 
 
 def myFunc(myData):
@@ -297,12 +342,12 @@ def stemming_and_lemmatization(data_stem):
     porter_stemmer = PorterStemmer()
 
     data_stem["text"] = data_stem["text"].apply(do_re_tokenize)
-    data_stem['text'] = data_stem['text'].apply(lambda x: [porter_stemmer.stem(y) for y in x])
+    #data_stem['text'] = data_stem['text'].apply(lambda x: [porter_stemmer.stem(y) for y in x])
     data_stem["text"] = data_stem["text"].apply(lambda x: [wnl.lemmatize(y) for y in x])
     data_stem["text"] = data_stem["text"].apply(lambda x: " ".join(x))
 
     data_stem["aspect_term"] = data_stem["aspect_term"].apply(do_re_tokenize)
-    data_stem['aspect_term'] = data_stem['aspect_term'].apply(lambda x: [porter_stemmer.stem(y) for y in x])
+    #data_stem['aspect_term'] = data_stem['aspect_term'].apply(lambda x: [porter_stemmer.stem(y) for y in x])
     data_stem["aspect_term"] = data_stem["aspect_term"].apply(lambda x: [wnl.lemmatize(y) for y in x])
     data_stem["aspect_term"] = data_stem["aspect_term"].apply(lambda x: " ".join(x))
 

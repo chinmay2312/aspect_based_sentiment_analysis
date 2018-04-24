@@ -201,7 +201,7 @@ def myFunc(myData):
         aspect_st.append(int(aspect_locs[0])/text_len)
         aspect_end.append(int(aspect_locs[1])/text_len)
         
-        word_tokens = word_tokenize(row['text'])
+        word_tokens = do_re_tokenize(row['text'])
         filtered_sentence = ''
         for w in word_tokens:
             if w not in stop_words:
@@ -216,6 +216,7 @@ def myFunc(myData):
     #print(senseText[:5])
     
     x_vec = tfidf.fit_transform(myData.sense_text)
+    x_vec_aspect = tfidf.fit_transform(myData.aspect_term)
     #print(x_vec[0])
     #print(tfidf.inverse_transform(x_vec)[0])
     #print(np.where(tfidf.inverse_transform(x_vec)[0] == 'staff')[0])
@@ -224,11 +225,13 @@ def myFunc(myData):
     
     #print("Features:",tfidf.get_stop_words())
     #print(tfidf['abbys'])
+    idf_sum_aspect = x_vec_aspect.sum(axis=1)
     idf_sum = x_vec.sum(axis=1)
     myData["idf_score"] = idf_sum
+    myData["idf_aspect"] = idf_sum_aspect
     
     #print(data.sample(n=5))
-    return myData[["text","aspect_term","term_location","aspect_start","aspect_end","text_len", "idf_score"]]
+    return myData[["text","aspect_term","term_location","aspect_start","aspect_end","text_len", "idf_score","idf_aspect", "sense_text"]]
         
 
 def k_neighbor(x, y):

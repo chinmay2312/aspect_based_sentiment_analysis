@@ -24,7 +24,7 @@ re_tokenize = RegexpTokenizer("[\w']+")
 wnl = WordNetLemmatizer()
 # checker = enchant.Dict("en_US")
 stop_words = set(stopwords.words('english'))
-in_data_file = "data2_train.csv"
+in_data_file = "data1_train.csv"
 
 
 def load_data(in_data_file):
@@ -42,9 +42,10 @@ def load_data(in_data_file):
     x_vect = scipy.sparse.csr_matrix(x_vect)
     # x_vector = tfidf_vectorize(d_x)
     # print(x_vect.shape)
-    #k_neighbor(x_vect, d_y)
-    svm(x_vect, d_y)
-    #decision_tree(x_vect, d_y)
+    k_neighbor(x_vect, d_y)
+    #svm(x_vect, d_y)
+    #naive_bayes(x_vect, d_y)
+    decision_tree(x_vect, d_y)
     # cp_in_data = remove_stopwords(cp_in_data)
 
 
@@ -154,7 +155,7 @@ def calcAdjFeature(myData):
                     minDist = dist
                     #near_adj = str
                 elif str in negWords:
-                    adj_class= -1 #Negative
+                    adj_class= 2 #Negative
                     minDist = dist
                     #near_adj = str
                 else:
@@ -239,35 +240,56 @@ def k_neighbor(x, y):
     skf = StratifiedKFold(n_splits=10)
     skf.get_n_splits(x)
     accuracy_list = []
-    precision_list = []
-    recall_list = []
+    precision_list_pos = []
+    precision_list_neg = []
+    precision_list_neutral = []
+    recall_list_pos = []
+    recall_list_neg = []
+    recall_list_neutral = []
     for train_index, test_index in skf.split(x, y):
         x_train, x_test = x[train_index], x[test_index]
         y_train, y_test = y[train_index], y[test_index]
         knn.fit(x_train, y_train)
         y_pred = knn.predict(x_test)
         accuracy_list.append(knn.score(x_test, y_test))
-        cm = confusion_matrix(y_test, y_pred)
-        tp = cm[0][0]
-        tn = cm[2][2]
+        cm = confusion_matrix(y_test, y_pred,labels=[1,0,-1])
+        tp_pos = cm[0][0]
+        #tn = cm[2][2]
         fp = cm[0][2]
         fn = cm[2][0]
-        prec = tp/(tp+fp)
-        rec = tp/(tp+fn)
-        precision_list.append(prec)
-        recall_list.append(rec)
-        print(cm)
-        # precision = precision_score(y_test, y_pred, labels=[0,1])
-        # print(precision)
-        # precision_score()
+        
+        tp_neg = cm[2][2]
+        
+        tp_neutral = cm[1][1]
+        
+        prec_pos = tp_pos/(cm[0][0] + cm[1][0] + cm[2][0])
+        prec_neg = tp_neg/(cm[0][2] + cm[1][2] + cm[2][2])
+        #print(tp_neg,cm[0][2],cm[1][2],cm[2][2])
+        prec_neutral = tp_neutral/(cm[0][1] + cm[1][1] + cm[2][1])
+        rec_pos = tp_pos/(cm[0][0] + cm[0][1] + cm[0][2])
+        rec_neg = tp_neg/(cm[2][0] + cm[2][1] + cm[2][2])
+        rec_neutral = tp_neutral/(cm[1][0] + cm[1][1] + cm[1][2])
+        precision_list_pos.append(prec_pos)
+        precision_list_neg.append(prec_neg)
+        precision_list_neutral.append(prec_neutral)
+        recall_list_pos.append(rec_pos)
+        recall_list_neg.append(rec_neg)
+        recall_list_neutral.append(rec_neutral)
 
     accuracy = np.mean(accuracy_list)
-    precision = np.mean(precision_list)
-    recall = np.mean(recall_list)
-
-    print("Accuracy for kNN is : " + str(accuracy))
-    print("Precision for kNN is : " + str(precision))
-    print("Recall for kNN is : " + str(recall))
+    precision_pos = np.mean(precision_list_pos)
+    precision_neg = np.mean(precision_list_neg)
+    precision_neutral = np.mean(precision_list_neutral)
+    recall_pos = np.mean(recall_list_pos)
+    recall_neg = np.mean(recall_list_neg)
+    recall_neutral = np.mean(recall_list_neutral)
+    print("Accuracy for knn is : " + str(accuracy))
+    print("Precision for knn (class 1) is : " + str(precision_pos))
+    print("Precision for knn (class -1) is : " + str(precision_neg))
+    print("Precision for knn (class 0) is : " + str(precision_neutral))
+    print("Recall for knn (class 1) is : " + str(recall_pos))
+    print("Recall for knn (class -1) is : " + str(recall_neg))
+    print("Recall for knn (class 0) is : " + str(recall_neutral))
 
 
 def decision_tree(x, y):
@@ -275,6 +297,12 @@ def decision_tree(x, y):
     skf = StratifiedKFold(n_splits=10)
     skf.get_n_splits(x)
     accuracy_list = []
+    precision_list_pos = []
+    precision_list_neg = []
+    precision_list_neutral = []
+    recall_list_pos = []
+    recall_list_neg = []
+    recall_list_neutral = []
 
     for train_index, test_index in skf.split(x, y):
         x_train, x_test = x[train_index], x[test_index]
@@ -283,20 +311,56 @@ def decision_tree(x, y):
         y_pred = dtree.predict(x_test)
         accuracy_list.append(dtree.score(x_test, y_test))
         cm = confusion_matrix(y_test, y_pred)
-        print(cm)
+        tp_pos = cm[0][0]
+        #tn = cm[2][2]
+        fp = cm[0][2]
+        fn = cm[2][0]
+        
+        tp_neg = cm[2][2]
+        
+        tp_neutral = cm[1][1]
+        
+        prec_pos = tp_pos/(cm[0][0] + cm[1][0] + cm[2][0])
+        prec_neg = tp_neg/(cm[0][2] + cm[1][2] + cm[2][2])
+        #print(tp_neg,cm[0][2],cm[1][2],cm[2][2])
+        prec_neutral = tp_neutral/(cm[0][1] + cm[1][1] + cm[2][1])
+        rec_pos = tp_pos/(cm[0][0] + cm[0][1] + cm[0][2])
+        rec_neg = tp_neg/(cm[2][0] + cm[2][1] + cm[2][2])
+        rec_neutral = tp_neutral/(cm[1][0] + cm[1][1] + cm[1][2])
+        precision_list_pos.append(prec_pos)
+        precision_list_neg.append(prec_neg)
+        precision_list_neutral.append(prec_neutral)
+        recall_list_pos.append(rec_pos)
+        recall_list_neg.append(rec_neg)
+        recall_list_neutral.append(rec_neutral)
+
     accuracy = np.mean(accuracy_list)
-    # precision = np.mean(precision_list)
-    # recall = np.mean(recall_list)
-    print("Accuracy for Decision Tree is : " + str(accuracy))
-    # print("Precision for Decision Tree is : " + str(precision))
-    # print("Recall for Decision Tree is : " + str(recall))
+    precision_pos = np.mean(precision_list_pos)
+    precision_neg = np.mean(precision_list_neg)
+    precision_neutral = np.mean(precision_list_neutral)
+    recall_pos = np.mean(recall_list_pos)
+    recall_neg = np.mean(recall_list_neg)
+    recall_neutral = np.mean(recall_list_neutral)
+    print("Accuracy for dtree is : " + str(accuracy))
+    print("Precision for dtree (class 1) is : " + str(precision_pos))
+    print("Precision for dtree (class -1) is : " + str(precision_neg))
+    print("Precision for dtree (class 0) is : " + str(precision_neutral))
+    print("Recall for dtree (class 1) is : " + str(recall_pos))
+    print("Recall for dtree (class -1) is : " + str(recall_neg))
+    print("Recall for dtree (class 0) is : " + str(recall_neutral))
 
 
 def naive_bayes(x, y):
     skf = StratifiedKFold(n_splits=10)
     skf.get_n_splits(x)
     accuracy_list = []
-
+    precision_list_pos = []
+    precision_list_neg = []
+    precision_list_neutral = []
+    recall_list_pos = []
+    recall_list_neg = []
+    recall_list_neutral = []
+    
     for train_index, test_index in skf.split(x, y):
         gnb = MultinomialNB()
         x_train, x_test = x[train_index], x[test_index]
@@ -305,35 +369,104 @@ def naive_bayes(x, y):
         y_pred = gnb.predict(x_test)
         accuracy_list.append(gnb.score(x_test, y_test))
         cm = confusion_matrix(y_test, y_pred)
-        # print(cm)
+        tp_pos = cm[0][0]
+        #tn = cm[2][2]
+        fp = cm[0][2]
+        fn = cm[2][0]
+        
+        tp_neg = cm[2][2]
+        
+        tp_neutral = cm[1][1]
+        
+        prec_pos = tp_pos/(cm[0][0] + cm[1][0] + cm[2][0])
+        prec_neg = tp_neg/(cm[0][2] + cm[1][2] + cm[2][2])
+        #print(tp_neg,cm[0][2],cm[1][2],cm[2][2])
+        prec_neutral = tp_neutral/(cm[0][1] + cm[1][1] + cm[2][1])
+        rec_pos = tp_pos/(cm[0][0] + cm[0][1] + cm[0][2])
+        rec_neg = tp_neg/(cm[2][0] + cm[2][1] + cm[2][2])
+        rec_neutral = tp_neutral/(cm[1][0] + cm[1][1] + cm[1][2])
+        precision_list_pos.append(prec_pos)
+        precision_list_neg.append(prec_neg)
+        precision_list_neutral.append(prec_neutral)
+        recall_list_pos.append(rec_pos)
+        recall_list_neg.append(rec_neg)
+        recall_list_neutral.append(rec_neutral)
+
     accuracy = np.mean(accuracy_list)
-    # precision = np.mean(precision_list)
-    # recall = np.mean(recall_list)
+    precision_pos = np.mean(precision_list_pos)
+    precision_neg = np.mean(precision_list_neg)
+    precision_neutral = np.mean(precision_list_neutral)
+    recall_pos = np.mean(recall_list_pos)
+    recall_neg = np.mean(recall_list_neg)
+    recall_neutral = np.mean(recall_list_neutral)
     print("Accuracy for nb is : " + str(accuracy))
-    # print("Precision for svc is : " + str(precision))
-    # print("Recall for svc is : " + str(recall))
+    print("Precision for nb (class 1) is : " + str(precision_pos))
+    print("Precision for nb (class -1) is : " + str(precision_neg))
+    print("Precision for nb (class 0) is : " + str(precision_neutral))
+    print("Recall for nb (class 1) is : " + str(recall_pos))
+    print("Recall for nb (class -1) is : " + str(recall_neg))
+    print("Recall for nb (class 0) is : " + str(recall_neutral))
 
 
 def svm(x, y):
-    svc = LinearSVC()
+    svc = LinearSVC(dual=False)
     skf = StratifiedKFold(n_splits=10)
     skf.get_n_splits(x)
     accuracy_list = []
+    precision_list_pos = []
+    precision_list_neg = []
+    precision_list_neutral = []
+    recall_list_pos = []
+    recall_list_neg = []
+    recall_list_neutral = []
 
     for train_index, test_index in skf.split(x, y):
+        #print()
         x_train, x_test = x[train_index], x[test_index]
         y_train, y_test = y[train_index], y[test_index]
         svc.fit(x_train, y_train)
         y_pred = svc.predict(x_test)
         accuracy_list.append(svc.score(x_test, y_test))
-        cm = confusion_matrix(y_test, y_pred)
+        cm = confusion_matrix(y_test, y_pred,labels=[1,0,-1])
         #print(cm)
+        
+        tp_pos = cm[0][0]
+        #tn = cm[2][2]
+        fp = cm[0][2]
+        fn = cm[2][0]
+        
+        tp_neg = cm[2][2]
+        
+        tp_neutral = cm[1][1]
+        
+        prec_pos = tp_pos/(cm[0][0] + cm[1][0] + cm[2][0])
+        prec_neg = tp_neg/(cm[0][2] + cm[1][2] + cm[2][2])
+        #print(tp_neg,cm[0][2],cm[1][2],cm[2][2])
+        prec_neutral = tp_neutral/(cm[0][1] + cm[1][1] + cm[2][1])
+        rec_pos = tp_pos/(cm[0][0] + cm[0][1] + cm[0][2])
+        rec_neg = tp_neg/(cm[2][0] + cm[2][1] + cm[2][2])
+        rec_neutral = tp_neutral/(cm[1][0] + cm[1][1] + cm[1][2])
+        precision_list_pos.append(prec_pos)
+        precision_list_neg.append(prec_neg)
+        precision_list_neutral.append(prec_neutral)
+        recall_list_pos.append(rec_pos)
+        recall_list_neg.append(rec_neg)
+        recall_list_neutral.append(rec_neutral)
+
     accuracy = np.mean(accuracy_list)
-    # precision = np.mean(precision_list)
-    # recall = np.mean(recall_list)
+    precision_pos = np.mean(precision_list_pos)
+    precision_neg = np.mean(precision_list_neg)
+    precision_neutral = np.mean(precision_list_neutral)
+    recall_pos = np.mean(recall_list_pos)
+    recall_neg = np.mean(recall_list_neg)
+    recall_neutral = np.mean(recall_list_neutral)
     print("Accuracy for svc is : " + str(accuracy))
-    # print("Precision for svc is : " + str(precision))
-    # print("Recall for svc is : " + str(recall))
+    print("Precision for svc (class 1) is : " + str(precision_pos))
+    print("Precision for svc (class -1) is : " + str(precision_neg))
+    print("Precision for svc (class 0) is : " + str(precision_neutral))
+    print("Recall for svc (class 1) is : " + str(recall_pos))
+    print("Recall for svc (class -1) is : " + str(recall_neg))
+    print("Recall for svc (class 0) is : " + str(recall_neutral))
 
 
 def tfidf_vectorize(d_x):

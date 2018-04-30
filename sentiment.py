@@ -35,9 +35,8 @@ def load_data(in_data_file):
     d_y = data["class"]
     # x_vect = myFunc(data)#[["text","aspect_term","term_location"]])
     x_vect = get_vectorized_ngram_data(data.text)
-
-    # x_vect = calc_adj_feature(x_vect)
     x_vect = scipy.sparse.csr_matrix(x_vect)
+    x_vect = calc_adj_feature(x_vect, data)
     # x_vector = tfidf_vectorize(d_x)
     # print(x_vect.shape)
     # k_neighbor(x_vect, d_y)
@@ -138,7 +137,7 @@ def svm(x, y):
     print("Recall for svc (class 0) is : " + str(recall_neutral))
 
 
-def calc_adj_feature(myData):
+def calc_adj_feature(x_vect, myData):
     text_file = open("pos_words.txt", "r")
     pos_words = text_file.read().split('\n')
     text_file = open("neg_words.txt", "r")
@@ -183,15 +182,15 @@ def calc_adj_feature(myData):
             term_start = int(re.split('--', row['term_location'])[0])
             term_end = int(re.split('--', row['term_location'])[1])
         # print("start: ",term_start, " end: ",term_end)
-        neg_count = 0
-        pos_count = 0
+        negCount = 0
+        posCount = 0
         for str in word_tokenize(my_text):
 
             # print("str: ",str,"\t index:",row['text'].index(str))
             if str in pos_words:
-                pos_count = pos_count + 1
+                posCount = posCount + 1
             elif str in neg_words:
-                neg_count = neg_count + 1
+                negCount = negCount + 1
             try:
                 # if my_text.index(str) >= term_start and my_text.index(str) < term_end:
                 if term_start <= my_text.index(str) < term_end:
@@ -211,7 +210,7 @@ def calc_adj_feature(myData):
                 print("aspect: ", row['aspect_term'])
                 # print("start: ",term_start, " end: ",term_end)
                 # finally:
-                adj_class = 0
+                adjClass = 0
                 min_dist = len(my_text)
                 near_adj = str
                 break
@@ -220,20 +219,20 @@ def calc_adj_feature(myData):
                 # min_dist = dist
                 near_adj = str
                 if str in pos_words:
-                    adj_class = +1  # Positive
+                    adjClass = +1  # Positive
                     min_dist = dist
                     # near_adj = str
                 elif str in neg_words:
-                    adj_class = 2  # Negative
+                    adjClass = 2  # Negative
                     min_dist = dist
                     # near_adj = str
                 else:
-                    adj_class = 0  # Neutral
-        adj_class.append(adj_class)
+                    adjClass = 0  # Neutral
+        adj_class.append(adjClass)
         nearest_adj.append(near_adj)
         adj_dist.append(min_dist)
-        pos_count.append(pos_count)
-        neg_count.append(neg_count)
+        pos_count.append(posCount)
+        neg_count.append(negCount)
         sub_sent_counts.append(sub_sent_count)
 
     # myData["nearest_adj"] = nearest_adj
@@ -242,10 +241,14 @@ def calc_adj_feature(myData):
     myData["pos_count"] = pos_count
     myData["neg_count"] = neg_count
     myData["sub_sent_counts"] = sub_sent_counts
+    
+    myData2 = myData[["adj_class", "adj_dist", "pos_count", "neg_count"]]
+    myData2 = scipy.sparse.csr_matrix(myData2)
+    print('x_vect shape:',x_vect.shape)
+    print('myData2 shape:',myData2.shape)
 
-    return myData[
-        ["aspect_start", "aspect_end", "text_len", "adj_class", "adj_dist", "pos_count", "neg_count", "idf_score",
-         "idf_aspect"]]
+    return scipy.sparse.hstack((x_vect,myData2)).tocsr()
+    #return myData[["aspect_start", "aspect_end", "text_len", "adj_class", "adj_dist", "pos_count", "neg_count", "idf_score", "idf_aspect"]]
 
 '''
 def myFunc(myData):

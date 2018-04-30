@@ -6,6 +6,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import StratifiedKFold
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.naive_bayes import MultinomialNB
+from sklearn.feature_selection import chi2, SelectKBest
 from sklearn.svm import LinearSVC
 from sklearn.neighbors import KNeighborsClassifier
 from nltk.tokenize import word_tokenize, RegexpTokenizer
@@ -25,6 +26,8 @@ def load_data(in_data_file):
     data = pd.read_csv(in_data_file, skipinitialspace=True)
     data.text = data.text.str.replace("\[comma\]", ",")
     data.aspect_term = data.aspect_term.str.replace("\[comma\]", ",")
+    data.text = data.text.str.replace("_", "")
+    data.aspect_term = data.aspect_term.str.replace("_", "")
     data = to_lower(data)
 
     # data = in_data.copy(deep=True)
@@ -37,12 +40,15 @@ def load_data(in_data_file):
     x_vect = get_vectorized_ngram_data(data.text)
     x_vect = scipy.sparse.csr_matrix(x_vect)
     x_vect = calc_adj_feature(x_vect, data)
+    # dimensionality reduction
+    x_vect = apply_chi2(x_vect, d_y)
+    # print(x_vect)
     # x_vector = tfidf_vectorize(d_x)
     # print(x_vect.shape)
-    # k_neighbor(x_vect, d_y)
+    k_neighbor(x_vect, d_y)
     svm(x_vect, d_y)
-    # naive_bayes(x_vect, d_y)
-    # decision_tree(x_vect, d_y)
+    naive_bayes(x_vect, d_y)
+    decision_tree(x_vect, d_y)
     # cp_in_data = remove_stopwords(cp_in_data)
 
 
@@ -50,6 +56,18 @@ def to_lower(data):
     data["text"] = data["text"].str.lower()
     data["aspect_term"] = data["aspect_term"].str.lower()
     return data
+
+
+def apply_chi2(x, y):
+    print("###########")
+    print(x)
+    # chi2_val= chi2(x, y)
+    chi2_selector = SelectKBest(chi2, k=10000)
+    X_kbest = chi2_selector.fit_transform(x, y)
+    print(X_kbest)
+    #import time
+    #time.sleep(100)
+    return X_kbest
 
 
 '''
@@ -95,7 +113,7 @@ def svm(x, y):
         svc.fit(x_train, y_train)
         y_pred = svc.predict(x_test)
         accuracy_list.append(svc.score(x_test, y_test))
-        cm = confusion_matrix(y_test, y_pred, labels=[1, 0, -1])
+        cm = confusion_matrix(y_test, y_pred, labels=[1, 0, 2])
         # print(cm)
 
         tp_pos = cm[0][0]
@@ -129,12 +147,12 @@ def svm(x, y):
     recall_neg = np.mean(recall_list_neg)
     recall_neutral = np.mean(recall_list_neutral)
     print("Accuracy for svc is : " + str(accuracy))
-    print("Precision for svc (class 1) is : " + str(precision_pos))
-    print("Precision for svc (class -1) is : " + str(precision_neg))
-    print("Precision for svc (class 0) is : " + str(precision_neutral))
-    print("Recall for svc (class 1) is : " + str(recall_pos))
-    print("Recall for svc (class -1) is : " + str(recall_neg))
-    print("Recall for svc (class 0) is : " + str(recall_neutral))
+    # print("Precision for svc (class 1) is : " + str(precision_pos))
+    # print("Precision for svc (class -1) is : " + str(precision_neg))
+    # print("Precision for svc (class 0) is : " + str(precision_neutral))
+    # print("Recall for svc (class 1) is : " + str(recall_pos))
+    # print("Recall for svc (class -1) is : " + str(recall_neg))
+    # print("Recall for svc (class 0) is : " + str(recall_neutral))
 
 
 def calc_adj_feature(x_vect, myData):
@@ -248,7 +266,7 @@ def calc_adj_feature(x_vect, myData):
     print('myData2 shape:',myData2.shape)
 
     return scipy.sparse.hstack((x_vect,myData2)).tocsr()
-    #return myData[["aspect_start", "aspect_end", "text_len", "adj_class", "adj_dist", "pos_count", "neg_count", "idf_score", "idf_aspect"]]
+    # return myData[["aspect_start", "aspect_end", "text_len", "adj_class", "adj_dist", "pos_count", "neg_count", "idf_score", "idf_aspect"]]
 
 '''
 def myFunc(myData):

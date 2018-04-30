@@ -722,6 +722,7 @@ fervent
 fervently
 fervid
 fervidly
+forgiven
 fervor
 festive
 fidelity

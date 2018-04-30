@@ -1,28 +1,22 @@
 import pandas as pd
 import numpy as np
 
-from sklearn.metrics import precision_score, f1_score, confusion_matrix
-from sklearn import preprocessing
+from sklearn.metrics import confusion_matrix
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.model_selection import KFold
-from sklearn.model_selection import cross_val_score, StratifiedKFold
+from sklearn.model_selection import StratifiedKFold
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.naive_bayes import GaussianNB, BernoulliNB, MultinomialNB
+from sklearn.naive_bayes import MultinomialNB
 from sklearn.svm import LinearSVC
 from sklearn.neighbors import KNeighborsClassifier
-import nltk
 from nltk.tokenize import word_tokenize, RegexpTokenizer
 from nltk.stem.porter import PorterStemmer
 from nltk.stem import WordNetLemmatizer
-# from nltk.tokenize.moses import MosesDetokenizer
 from nltk.corpus import stopwords
-# import enchant
 import re
 import scipy
 
 re_tokenize = RegexpTokenizer("[\w']+")
 wnl = WordNetLemmatizer()
-# checker = enchant.Dict("en_US")
 stop_words = set(stopwords.words('english'))
 in_data_file = "data1_train.csv"
 
@@ -30,22 +24,26 @@ in_data_file = "data1_train.csv"
 def load_data(in_data_file):
     data = pd.read_csv(in_data_file, skipinitialspace=True)
     data.text = data.text.str.replace("\[comma\]", ",")
-    data = to_lower(data)
     data.aspect_term = data.aspect_term.str.replace("\[comma\]", ",")
+    data = to_lower(data)
+
     # data = in_data.copy(deep=True)
-    #data.text = data["text"].apply(remove_tags)
-    data = stemming_and_lemmatization(data)
+    # data.text = data["text"].apply(remove_tags)
+    data = do_lemmatization(data)
     print("Data loaded and preprocessed")
+    data["class"] = data["class"].replace(-1, 2)
     d_y = data["class"]
-    x_vect = myFunc(data)#[["text","aspect_term","term_location"]])
-    x_vect = calcAdjFeature(x_vect)
+    # x_vect = myFunc(data)#[["text","aspect_term","term_location"]])
+    x_vect = get_vectorized_ngram_data(data.text)
+
+    # x_vect = calc_adj_feature(x_vect)
     x_vect = scipy.sparse.csr_matrix(x_vect)
     # x_vector = tfidf_vectorize(d_x)
     # print(x_vect.shape)
-    k_neighbor(x_vect, d_y)
-    #svm(x_vect, d_y)
-    #naive_bayes(x_vect, d_y)
-    decision_tree(x_vect, d_y)
+    # k_neighbor(x_vect, d_y)
+    svm(x_vect, d_y)
+    # naive_bayes(x_vect, d_y)
+    # decision_tree(x_vect, d_y)
     # cp_in_data = remove_stopwords(cp_in_data)
 
 
@@ -69,126 +67,198 @@ def remove_stopwords(cp_in_data):
     return cp_in_data
 '''
 
-def calcAdjFeature(myData):
+
+def get_vectorized_ngram_data(text):
+    tfidf = TfidfVectorizer(ngram_range=(1, 2))
+    x_vec = tfidf.fit_transform(text)
+    # print("Features:",tfidf.get_feature_names())
+    # print(x_vec.toarray())
+    # idf_sum = [sum(x_vec[i]) for i in range(3602)]
+    return x_vec
+
+
+def svm(x, y):
+    svc = LinearSVC(dual=False)
+    skf = StratifiedKFold(n_splits=10)
+    skf.get_n_splits(x)
+    accuracy_list = []
+    precision_list_pos = []
+    precision_list_neg = []
+    precision_list_neutral = []
+    recall_list_pos = []
+    recall_list_neg = []
+    recall_list_neutral = []
+
+    for train_index, test_index in skf.split(x, y):
+        # print()
+        x_train, x_test = x[train_index], x[test_index]
+        y_train, y_test = y[train_index], y[test_index]
+        svc.fit(x_train, y_train)
+        y_pred = svc.predict(x_test)
+        accuracy_list.append(svc.score(x_test, y_test))
+        cm = confusion_matrix(y_test, y_pred, labels=[1, 0, -1])
+        # print(cm)
+
+        tp_pos = cm[0][0]
+        # tn = cm[2][2]
+        fp = cm[0][2]
+        fn = cm[2][0]
+
+        tp_neg = cm[2][2]
+
+        tp_neutral = cm[1][1]
+
+        prec_pos = tp_pos / (cm[0][0] + cm[1][0] + cm[2][0])
+        prec_neg = tp_neg / (cm[0][2] + cm[1][2] + cm[2][2])
+        # print(tp_neg,cm[0][2],cm[1][2],cm[2][2])
+        prec_neutral = tp_neutral / (cm[0][1] + cm[1][1] + cm[2][1])
+        rec_pos = tp_pos / (cm[0][0] + cm[0][1] + cm[0][2])
+        rec_neg = tp_neg / (cm[2][0] + cm[2][1] + cm[2][2])
+        rec_neutral = tp_neutral / (cm[1][0] + cm[1][1] + cm[1][2])
+        precision_list_pos.append(prec_pos)
+        precision_list_neg.append(prec_neg)
+        precision_list_neutral.append(prec_neutral)
+        recall_list_pos.append(rec_pos)
+        recall_list_neg.append(rec_neg)
+        recall_list_neutral.append(rec_neutral)
+
+    accuracy = np.mean(accuracy_list)
+    precision_pos = np.mean(precision_list_pos)
+    precision_neg = np.mean(precision_list_neg)
+    precision_neutral = np.mean(precision_list_neutral)
+    recall_pos = np.mean(recall_list_pos)
+    recall_neg = np.mean(recall_list_neg)
+    recall_neutral = np.mean(recall_list_neutral)
+    print("Accuracy for svc is : " + str(accuracy))
+    print("Precision for svc (class 1) is : " + str(precision_pos))
+    print("Precision for svc (class -1) is : " + str(precision_neg))
+    print("Precision for svc (class 0) is : " + str(precision_neutral))
+    print("Recall for svc (class 1) is : " + str(recall_pos))
+    print("Recall for svc (class -1) is : " + str(recall_neg))
+    print("Recall for svc (class 0) is : " + str(recall_neutral))
+
+
+def calc_adj_feature(myData):
     text_file = open("pos_words.txt", "r")
-    posWords = text_file.read().split('\n')
+    pos_words = text_file.read().split('\n')
     text_file = open("neg_words.txt", "r")
-    negWords = text_file.read().split('\n')
-    
-    conjunctList = ['but', 'nor', 'yet', 'although', 'before', 'if', 'though', 'till', 'unless', 'until', 'what', 'whether', 'while']
-    
-    adjClass = []
+    neg_words = text_file.read().split('\n')
+
+    conjunct_list = ['but', 'nor', 'yet', 'although', 'before', 'if', 'though', 'till', 'unless', 'until', 'what',
+                     'whether', 'while']
+
+    adj_class = []
     adj_dist = []
     nearest_adj = []
-    posCount = []
-    negCount = []
-    subSentCounts = []
-    
-    for id,row in myData.iterrows():
-        minDist = len(row['text'])
-        
-        
-        myText = row['text']
-        myText2 = myText
-        
-        for word in word_tokenize(myText2):
-            if word in conjunctList:
-                myText2 = myText2.replace(word,"~")
-                
-        subSentCount = len(myText2.split('~'))
-                
-        for subText in myText2.split('~'):
+    pos_count = []
+    neg_count = []
+    sub_sent_counts = []
+
+    for id, row in myData.iterrows():
+        min_dist = len(row['text'])
+
+        my_text = row['text']
+        my_text2 = my_text
+
+        for word in word_tokenize(my_text2):
+            if word in conjunct_list:
+                my_text2 = my_text2.replace(word, "~")
+
+        sub_sent_count = len(my_text2.split('~'))
+
+        for subText in my_text2.split('~'):
             if row['aspect_term'] in subText:
-                #print("Full text: ",myText)
-                #print("subText: ",subText)
-                #print("aspect:",row['aspect_term'])
-                myText = subText
+                # print("Full text: ",my_text)
+                # print("subText: ",subText)
+                # print("aspect:",row['aspect_term'])
+                my_text = subText
                 break
-        
-        #print("text: ",row['text'])
-        #print("aspect: ",row['aspect_term'])
+
+        # print("text: ",row['text'])
+        # print("aspect: ",row['aspect_term'])
         try:
-            term_start = myText.index(row['aspect_term'])#int(re.split('--',row['term_location'])[0])
-            term_end = term_start + len(row['aspect_term'])#int(re.split('--',row['term_location'])[1])
+            term_start = my_text.index(row['aspect_term'])  # int(re.split('--',row['term_location'])[0])
+            term_end = term_start + len(row['aspect_term'])  # int(re.split('--',row['term_location'])[1])
         except:
-            term_start = int(re.split('--',row['term_location'])[0])
-            term_end = int(re.split('--',row['term_location'])[1])
-        #print("start: ",term_start, " end: ",term_end)
-        neg_count =0
-        pos_count =0
-        for str in word_tokenize(myText):
-            
-            #print("str: ",str,"\t index:",row['text'].index(str))
-            if str in posWords:
-                pos_count = pos_count +1
-            elif str in negWords:
-                neg_count = neg_count +1
-            
+            term_start = int(re.split('--', row['term_location'])[0])
+            term_end = int(re.split('--', row['term_location'])[1])
+        # print("start: ",term_start, " end: ",term_end)
+        neg_count = 0
+        pos_count = 0
+        for str in word_tokenize(my_text):
+
+            # print("str: ",str,"\t index:",row['text'].index(str))
+            if str in pos_words:
+                pos_count = pos_count + 1
+            elif str in neg_words:
+                neg_count = neg_count + 1
             try:
-                if myText.index(str) >= term_start and myText.index(str) < term_end:
+                # if my_text.index(str) >= term_start and my_text.index(str) < term_end:
+                if term_start <= my_text.index(str) < term_end:
                     continue
             except:
                 print("Error line 94")
-                print("text: ",myText)
-                print("str: ",str)
-                #print("index: ",row['text'].index(str))
-            
+                print("text: ", my_text)
+                print("str: ", str)
+                # print("index: ",row['text'].index(str))
+
             try:
-                dist = abs(myText.index(str) - myText.index(row['aspect_term']))
+                dist = abs(my_text.index(str) - my_text.index(row['aspect_term']))
             except ValueError:
                 print("Aspect Term missing in Text")
-                print("id: ",id)
-                print("text: ",myText)
-                print("aspect: ",row['aspect_term'])
-              #  print("start: ",term_start, " end: ",term_end)
-            #finally:
-                adj_class =0
-                minDist = len(myText)
+                print("id: ", id)
+                print("text: ", my_text)
+                print("aspect: ", row['aspect_term'])
+                # print("start: ",term_start, " end: ",term_end)
+                # finally:
+                adj_class = 0
+                min_dist = len(my_text)
                 near_adj = str
                 break
-            
-            if dist < minDist:
-                #minDist = dist
+
+            if dist < min_dist:
+                # min_dist = dist
                 near_adj = str
-                if str in posWords:
-                    adj_class= +1 #Positive
-                    minDist = dist
-                    #near_adj = str
-                elif str in negWords:
-                    adj_class= 2 #Negative
-                    minDist = dist
-                    #near_adj = str
+                if str in pos_words:
+                    adj_class = +1  # Positive
+                    min_dist = dist
+                    # near_adj = str
+                elif str in neg_words:
+                    adj_class = 2  # Negative
+                    min_dist = dist
+                    # near_adj = str
                 else:
-                    adj_class= 0  #Neutral
-        adjClass.append(adj_class)
+                    adj_class = 0  # Neutral
+        adj_class.append(adj_class)
         nearest_adj.append(near_adj)
-        adj_dist.append(minDist)
-        posCount.append(pos_count)
-        negCount.append(neg_count)
-        subSentCounts.append(subSentCount)
-        
-    #myData["nearest_adj"] = nearest_adj
-    myData["adj_class"] = adjClass
+        adj_dist.append(min_dist)
+        pos_count.append(pos_count)
+        neg_count.append(neg_count)
+        sub_sent_counts.append(sub_sent_count)
+
+    # myData["nearest_adj"] = nearest_adj
+    myData["adj_class"] = adj_class
     myData["adj_dist"] = adj_dist
-    myData["posCount"] = posCount
-    myData["negCount"] = negCount
-    myData["subSentCounts"] = subSentCounts
-    
-    return myData[["aspect_start","aspect_end","text_len","adj_class","adj_dist","posCount","negCount", "idf_score","idf_aspect"]]
+    myData["pos_count"] = pos_count
+    myData["neg_count"] = neg_count
+    myData["sub_sent_counts"] = sub_sent_counts
 
+    return myData[
+        ["aspect_start", "aspect_end", "text_len", "adj_class", "adj_dist", "pos_count", "neg_count", "idf_score",
+         "idf_aspect"]]
 
+'''
 def myFunc(myData):
-    
     tfidf = TfidfVectorizer(use_idf=True)
-    #x_vec = tfidf.fit_transform(myData.text)
-    #print(x_vec.shape)
-    #print("Features:",tfidf.get_feature_names())
-    #idf_sum = [sum(x_vec[i]) for i in range(3602)]
-    #idf_sum = x_vec.sum(axis=1)
-    #print(idf_sum.shape)
+    # x_vec = tfidf.fit_transform(myData.text)
+    # print(x_vec.shape)
+    # print("Features:",tfidf.get_feature_names())
+    # idf_sum = [sum(x_vec[i]) for i in range(3602)]
+    # idf_sum = x_vec.sum(axis=1)
+    # print(idf_sum.shape)
     
-    #split term_location into start and end
-    #print(data.sample(n=5))
+    # split term_location into start and end
+    # print(data.sample(n=5))
     aspect_st = []
     aspect_end = []
     textLen = []
@@ -233,7 +303,8 @@ def myFunc(myData):
     
     #print(data.sample(n=5))
     return myData[["text","aspect_term","term_location","aspect_start","aspect_end","text_len", "idf_score","idf_aspect", "sense_text"]]
-        
+'''
+
 
 def k_neighbor(x, y):
     knn = KNeighborsClassifier(n_neighbors=100)
@@ -246,6 +317,7 @@ def k_neighbor(x, y):
     recall_list_pos = []
     recall_list_neg = []
     recall_list_neutral = []
+
     for train_index, test_index in skf.split(x, y):
         x_train, x_test = x[train_index], x[test_index]
         y_train, y_test = y[train_index], y[test_index]
@@ -254,7 +326,7 @@ def k_neighbor(x, y):
         accuracy_list.append(knn.score(x_test, y_test))
         cm = confusion_matrix(y_test, y_pred,labels=[1,0,-1])
         tp_pos = cm[0][0]
-        #tn = cm[2][2]
+        # tn = cm[2][2]
         fp = cm[0][2]
         fn = cm[2][0]
         
@@ -264,7 +336,7 @@ def k_neighbor(x, y):
         
         prec_pos = tp_pos/(cm[0][0] + cm[1][0] + cm[2][0])
         prec_neg = tp_neg/(cm[0][2] + cm[1][2] + cm[2][2])
-        #print(tp_neg,cm[0][2],cm[1][2],cm[2][2])
+        # print(tp_neg,cm[0][2],cm[1][2],cm[2][2])
         prec_neutral = tp_neutral/(cm[0][1] + cm[1][1] + cm[2][1])
         rec_pos = tp_pos/(cm[0][0] + cm[0][1] + cm[0][2])
         rec_neg = tp_neg/(cm[2][0] + cm[2][1] + cm[2][2])
@@ -312,7 +384,7 @@ def decision_tree(x, y):
         accuracy_list.append(dtree.score(x_test, y_test))
         cm = confusion_matrix(y_test, y_pred)
         tp_pos = cm[0][0]
-        #tn = cm[2][2]
+        # tn = cm[2][2]
         fp = cm[0][2]
         fn = cm[2][0]
         
@@ -322,7 +394,7 @@ def decision_tree(x, y):
         
         prec_pos = tp_pos/(cm[0][0] + cm[1][0] + cm[2][0])
         prec_neg = tp_neg/(cm[0][2] + cm[1][2] + cm[2][2])
-        #print(tp_neg,cm[0][2],cm[1][2],cm[2][2])
+        # print(tp_neg,cm[0][2],cm[1][2],cm[2][2])
         prec_neutral = tp_neutral/(cm[0][1] + cm[1][1] + cm[2][1])
         rec_pos = tp_pos/(cm[0][0] + cm[0][1] + cm[0][2])
         rec_neg = tp_neg/(cm[2][0] + cm[2][1] + cm[2][2])
@@ -370,7 +442,7 @@ def naive_bayes(x, y):
         accuracy_list.append(gnb.score(x_test, y_test))
         cm = confusion_matrix(y_test, y_pred)
         tp_pos = cm[0][0]
-        #tn = cm[2][2]
+        # tn = cm[2][2]
         fp = cm[0][2]
         fn = cm[2][0]
         
@@ -380,7 +452,7 @@ def naive_bayes(x, y):
         
         prec_pos = tp_pos/(cm[0][0] + cm[1][0] + cm[2][0])
         prec_neg = tp_neg/(cm[0][2] + cm[1][2] + cm[2][2])
-        #print(tp_neg,cm[0][2],cm[1][2],cm[2][2])
+        # print(tp_neg,cm[0][2],cm[1][2],cm[2][2])
         prec_neutral = tp_neutral/(cm[0][1] + cm[1][1] + cm[2][1])
         rec_pos = tp_pos/(cm[0][0] + cm[0][1] + cm[0][2])
         rec_neg = tp_neg/(cm[2][0] + cm[2][1] + cm[2][2])
@@ -408,85 +480,15 @@ def naive_bayes(x, y):
     print("Recall for nb (class 0) is : " + str(recall_neutral))
 
 
-def svm(x, y):
-    svc = LinearSVC(dual=False)
-    skf = StratifiedKFold(n_splits=10)
-    skf.get_n_splits(x)
-    accuracy_list = []
-    precision_list_pos = []
-    precision_list_neg = []
-    precision_list_neutral = []
-    recall_list_pos = []
-    recall_list_neg = []
-    recall_list_neutral = []
-
-    for train_index, test_index in skf.split(x, y):
-        #print()
-        x_train, x_test = x[train_index], x[test_index]
-        y_train, y_test = y[train_index], y[test_index]
-        svc.fit(x_train, y_train)
-        y_pred = svc.predict(x_test)
-        accuracy_list.append(svc.score(x_test, y_test))
-        cm = confusion_matrix(y_test, y_pred,labels=[1,0,-1])
-        #print(cm)
-        
-        tp_pos = cm[0][0]
-        #tn = cm[2][2]
-        fp = cm[0][2]
-        fn = cm[2][0]
-        
-        tp_neg = cm[2][2]
-        
-        tp_neutral = cm[1][1]
-        
-        prec_pos = tp_pos/(cm[0][0] + cm[1][0] + cm[2][0])
-        prec_neg = tp_neg/(cm[0][2] + cm[1][2] + cm[2][2])
-        #print(tp_neg,cm[0][2],cm[1][2],cm[2][2])
-        prec_neutral = tp_neutral/(cm[0][1] + cm[1][1] + cm[2][1])
-        rec_pos = tp_pos/(cm[0][0] + cm[0][1] + cm[0][2])
-        rec_neg = tp_neg/(cm[2][0] + cm[2][1] + cm[2][2])
-        rec_neutral = tp_neutral/(cm[1][0] + cm[1][1] + cm[1][2])
-        precision_list_pos.append(prec_pos)
-        precision_list_neg.append(prec_neg)
-        precision_list_neutral.append(prec_neutral)
-        recall_list_pos.append(rec_pos)
-        recall_list_neg.append(rec_neg)
-        recall_list_neutral.append(rec_neutral)
-
-    accuracy = np.mean(accuracy_list)
-    precision_pos = np.mean(precision_list_pos)
-    precision_neg = np.mean(precision_list_neg)
-    precision_neutral = np.mean(precision_list_neutral)
-    recall_pos = np.mean(recall_list_pos)
-    recall_neg = np.mean(recall_list_neg)
-    recall_neutral = np.mean(recall_list_neutral)
-    print("Accuracy for svc is : " + str(accuracy))
-    print("Precision for svc (class 1) is : " + str(precision_pos))
-    print("Precision for svc (class -1) is : " + str(precision_neg))
-    print("Precision for svc (class 0) is : " + str(precision_neutral))
-    print("Recall for svc (class 1) is : " + str(recall_pos))
-    print("Recall for svc (class -1) is : " + str(recall_neg))
-    print("Recall for svc (class 0) is : " + str(recall_neutral))
-
-
-def tfidf_vectorize(d_x):
-    tfidf = TfidfVectorizer()
-    x_vec = tfidf.fit_transform(d_x)
-    # print("Features:",tfidf.get_feature_names())
-    # idf_sum = [sum(x_vec[i]) for i in range(3602)]
-    # x_traincv_array = x_vec.toarray()
-    return x_vec
-
-
 def tokenize(cp_in_data):
     cp_in_data["text"] = cp_in_data["text"].apply(lambda row: word_tokenize(row))
     return cp_in_data
 
 
 def do_re_tokenize(row):
-    #for x in data['text']:
     x = re_tokenize.tokenize(row)
     return x
+
 
 def remove_tags(row):
     row = str(row)
@@ -499,18 +501,18 @@ def remove_tags(row):
     return cleantext
 
 
-def stemming_and_lemmatization(data_stem):
+def do_lemmatization(data_stem):
     # PORTER STEMMER
     print("Porter Stemmer")
     porter_stemmer = PorterStemmer()
 
     data_stem["text"] = data_stem["text"].apply(do_re_tokenize)
-    #data_stem['text'] = data_stem['text'].apply(lambda x: [porter_stemmer.stem(y) for y in x])
+    # data_stem['text'] = data_stem['text'].apply(lambda x: [porter_stemmer.stem(y) for y in x])
     data_stem["text"] = data_stem["text"].apply(lambda x: [wnl.lemmatize(y) for y in x])
     data_stem["text"] = data_stem["text"].apply(lambda x: " ".join(x))
 
     data_stem["aspect_term"] = data_stem["aspect_term"].apply(do_re_tokenize)
-    #data_stem['aspect_term'] = data_stem['aspect_term'].apply(lambda x: [porter_stemmer.stem(y) for y in x])
+    # data_stem['aspect_term'] = data_stem['aspect_term'].apply(lambda x: [porter_stemmer.stem(y) for y in x])
     data_stem["aspect_term"] = data_stem["aspect_term"].apply(lambda x: [wnl.lemmatize(y) for y in x])
     data_stem["aspect_term"] = data_stem["aspect_term"].apply(lambda x: " ".join(x))
 

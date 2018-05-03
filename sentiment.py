@@ -28,6 +28,8 @@ def load_data(in_data_file):
     data.aspect_term = data.aspect_term.str.replace("\[comma\]", ",")
     data.text = data.text.str.replace("_", "")
     data.aspect_term = data.aspect_term.str.replace("_", "")
+    data.text = data.text.str.replace(" '", " ")
+    data.aspect_term = data.aspect_term.str.replace(" '", " ")
     data = to_lower(data)
 
     # data = in_data.copy(deep=True)
@@ -37,7 +39,7 @@ def load_data(in_data_file):
     data["class"] = data["class"].replace(-1, 2)
     d_y = data["class"]
     # x_vect = myFunc(data)#[["text","aspect_term","term_location"]])
-    x_vect = get_vectorized_ngram_data(data.text)
+    x_vect = get_vectorized_ngram_data(data[['text','aspect_term']])
     x_vect = scipy.sparse.csr_matrix(x_vect)
     x_vect = calc_adj_feature(x_vect, data)
     # dimensionality reduction
@@ -45,10 +47,10 @@ def load_data(in_data_file):
     # print(x_vect)
     # x_vector = tfidf_vectorize(d_x)
     # print(x_vect.shape)
-    k_neighbor(x_vect, d_y)
+    #k_neighbor(x_vect, d_y)
     svm(x_vect, d_y)
-    naive_bayes(x_vect, d_y)
-    decision_tree(x_vect, d_y)
+    #naive_bayes(x_vect, d_y)
+    #decision_tree(x_vect, d_y)
     # cp_in_data = remove_stopwords(cp_in_data)
 
 
@@ -59,12 +61,12 @@ def to_lower(data):
 
 
 def apply_chi2(x, y):
-    print("###########")
-    print(x)
+    #print("###########")
+    #print(x)
     # chi2_val= chi2(x, y)
-    chi2_selector = SelectKBest(chi2, k=10000)
+    chi2_selector = SelectKBest(chi2, k=4000)
     X_kbest = chi2_selector.fit_transform(x, y)
-    print(X_kbest)
+    #print(X_kbest)
     #import time
     #time.sleep(100)
     return X_kbest
@@ -85,9 +87,26 @@ def remove_stopwords(cp_in_data):
 '''
 
 
-def get_vectorized_ngram_data(text):
-    tfidf = TfidfVectorizer(ngram_range=(1, 2))
-    x_vec = tfidf.fit_transform(text)
+def get_vectorized_ngram_data(txt_asp_data):
+    
+    textList = []
+    for id,row in txt_asp_data.iterrows():
+        textWords = word_tokenize(row['text'])
+        try:
+            aspIndex = textWords.index(word_tokenize(row['aspect_term'])[0])
+            xtrWords = 5
+            startIndex = max(aspIndex - xtrWords,0)
+            endIndex = min(aspIndex + xtrWords,len(textWords))
+            textList.append(' '.join(textWords[startIndex:endIndex+1]))
+        except:
+            print(row['text'])
+            print("textWords:",textWords)
+            print("aspect:",row['aspect_term'])
+            print("aspect 1st word:",word_tokenize(row['aspect_term'])[0])
+            textList.append(row['text'])
+    
+    tfidf = TfidfVectorizer(ngram_range=(1, 3))
+    x_vec = tfidf.fit_transform(textList)
     # print("Features:",tfidf.get_feature_names())
     # print(x_vec.toarray())
     # idf_sum = [sum(x_vec[i]) for i in range(3602)]
@@ -162,7 +181,7 @@ def calc_adj_feature(x_vect, myData):
     neg_words = text_file.read().split('\n')
 
     conjunct_list = ['but', 'nor', 'yet', 'although', 'before', 'if', 'though', 'till', 'unless', 'until', 'what',
-                     'whether', 'while']
+                     'whether', 'while','.']
 
     adj_class = []
     adj_dist = []
@@ -262,8 +281,8 @@ def calc_adj_feature(x_vect, myData):
     
     myData2 = myData[["adj_class", "adj_dist", "pos_count", "neg_count"]]
     myData2 = scipy.sparse.csr_matrix(myData2)
-    print('x_vect shape:',x_vect.shape)
-    print('myData2 shape:',myData2.shape)
+    #print('x_vect shape:',x_vect.shape)
+    #print('myData2 shape:',myData2.shape)
 
     return scipy.sparse.hstack((x_vect,myData2)).tocsr()
     # return myData[["aspect_start", "aspect_end", "text_len", "adj_class", "adj_dist", "pos_count", "neg_count", "idf_score", "idf_aspect"]]

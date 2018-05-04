@@ -20,40 +20,69 @@ re_tokenize = RegexpTokenizer("[\w']+")
 wnl = WordNetLemmatizer()
 stop_words = set(stopwords.words('english'))
 in_data_file = "data1_train.csv"
+test_data_file = "data1_train.csv"
 
 
 def load_data(in_data_file):
     data = pd.read_csv(in_data_file, skipinitialspace=True)
+    dataTest = pd.read_csv(test_data_file, skipinitialspace=True)
+	#PreProcessing
+    data = preprocess(data)
+    dataTest = preprocess(dataTest)
+    print("Data loaded and preprocessed")
+	
+    data["class"] = data["class"].replace(-1, 2)
+    d_y = data["class"]
+
+	#Feature Extraction
+    x_vect = extract_features(data)
+    x_vect_test = extract_features(dataTest)
+    # x_vect = myFunc(data)#[["text","aspect_term","term_location"]])
+    # print(x_vect)
+    # x_vector = tfidf_vectorize(d_x)
+    # print(x_vect.shape)
+    #k_neighbor(x_vect, d_y)
+    #svm(x_vect, d_y)
+    finalSVM(x_vect, x_vect_test,d_y, dataTest['class'])
+	#naive_bayes(x_vect, d_y)
+    #decision_tree(x_vect, d_y)
+    # cp_in_data = remove_stopwords(cp_in_data)
+
+def preprocess(data):
     data.text = data.text.str.replace("\[comma\]", ",")
     data.aspect_term = data.aspect_term.str.replace("\[comma\]", ",")
     data.text = data.text.str.replace("_", "")
     data.aspect_term = data.aspect_term.str.replace("_", "")
     data.text = data.text.str.replace(" '", " ")
     data.aspect_term = data.aspect_term.str.replace(" '", " ")
+    data.text = data.text.str.replace("' ", " ")
+    data.aspect_term = data.aspect_term.str.replace("' ", " ")
+    data.text = data.text.str.replace("'s", " ")
+    data.aspect_term = data.aspect_term.str.replace("'s", " ")
+    #data.text = re.sub("'$", " ",data.text)
+    data.text = data.text.apply(lambda row: re.sub("'$", " ",row))
+    data.aspect_term = data.aspect_term.apply(lambda row: re.sub("'$", " ",row))
+    data.text = data.text.apply(lambda row: re.sub("^'", " ",row))
+    data.aspect_term = data.aspect_term.apply(lambda row: re.sub("^'", " ",row))
+
     data = to_lower(data)
 
     # data = in_data.copy(deep=True)
     # data.text = data["text"].apply(remove_tags)
     data = do_lemmatization(data)
-    print("Data loaded and preprocessed")
-    data["class"] = data["class"].replace(-1, 2)
-    d_y = data["class"]
-    # x_vect = myFunc(data)#[["text","aspect_term","term_location"]])
+    return data
+    #print(list(data))
+	
+def extract_features(data):
     x_vect = get_vectorized_ngram_data(data[['text','aspect_term']])
     x_vect = scipy.sparse.csr_matrix(x_vect)
     x_vect = calc_adj_feature(x_vect, data)
     # dimensionality reduction
-    x_vect = apply_chi2(x_vect, d_y)
-    # print(x_vect)
-    # x_vector = tfidf_vectorize(d_x)
-    # print(x_vect.shape)
-    #k_neighbor(x_vect, d_y)
-    svm(x_vect, d_y)
-    #naive_bayes(x_vect, d_y)
-    #decision_tree(x_vect, d_y)
-    # cp_in_data = remove_stopwords(cp_in_data)
+    x_vect = apply_chi2(x_vect, data['class'])
+	
+    return x_vect
 
-
+	
 def to_lower(data):
     data["text"] = data["text"].str.lower()
     data["aspect_term"] = data["aspect_term"].str.lower()
@@ -91,18 +120,18 @@ def get_vectorized_ngram_data(txt_asp_data):
     
     textList = []
     for id,row in txt_asp_data.iterrows():
-        textWords = word_tokenize(row['text'])
+        textWords = do_re_tokenize(row['text'])
         try:
-            aspIndex = textWords.index(word_tokenize(row['aspect_term'])[0])
+            aspIndex = textWords.index(do_re_tokenize(row['aspect_term'])[0])
             xtrWords = 5
             startIndex = max(aspIndex - xtrWords,0)
             endIndex = min(aspIndex + xtrWords,len(textWords))
             textList.append(' '.join(textWords[startIndex:endIndex+1]))
         except:
-            print(row['text'])
-            print("textWords:",textWords)
-            print("aspect:",row['aspect_term'])
-            print("aspect 1st word:",word_tokenize(row['aspect_term'])[0])
+            #print(row['text'])
+            #print("textWords:",textWords)
+            #print("aspect:",row['aspect_term'])
+            #print("aspect 1st word:",do_re_tokenize(row['aspect_term'])[0])
             textList.append(row['text'])
     
     tfidf = TfidfVectorizer(ngram_range=(1, 3))
@@ -112,7 +141,12 @@ def get_vectorized_ngram_data(txt_asp_data):
     # idf_sum = [sum(x_vec[i]) for i in range(3602)]
     return x_vec
 
-
+def finalSVM(X_train, X_test, Y_train, Y_test):
+    svc = LinearSVC(dual=False)
+    svc.fit(X_train, Y_train)
+    preds = svc.predict(X_test)
+    #print(svc.score(X_test, Y_test))
+	
 def svm(x, y):
     svc = LinearSVC(dual=False)
     skf = StratifiedKFold(n_splits=10)
@@ -165,13 +199,13 @@ def svm(x, y):
     recall_pos = np.mean(recall_list_pos)
     recall_neg = np.mean(recall_list_neg)
     recall_neutral = np.mean(recall_list_neutral)
-    print("Accuracy for svc is : " + str(accuracy))
     # print("Precision for svc (class 1) is : " + str(precision_pos))
     # print("Precision for svc (class -1) is : " + str(precision_neg))
     # print("Precision for svc (class 0) is : " + str(precision_neutral))
     # print("Recall for svc (class 1) is : " + str(recall_pos))
     # print("Recall for svc (class -1) is : " + str(recall_neg))
     # print("Recall for svc (class 0) is : " + str(recall_neutral))
+    print("Accuracy for svc is : " + str(accuracy))
 
 
 def calc_adj_feature(x_vect, myData):
@@ -196,7 +230,7 @@ def calc_adj_feature(x_vect, myData):
         my_text = row['text']
         my_text2 = my_text
 
-        for word in word_tokenize(my_text2):
+        for word in do_re_tokenize(my_text2):
             if word in conjunct_list:
                 my_text2 = my_text2.replace(word, "~")
 
@@ -221,7 +255,7 @@ def calc_adj_feature(x_vect, myData):
         # print("start: ",term_start, " end: ",term_end)
         negCount = 0
         posCount = 0
-        for str in word_tokenize(my_text):
+        for str in do_re_tokenize(my_text):
 
             # print("str: ",str,"\t index:",row['text'].index(str))
             if str in pos_words:
@@ -233,18 +267,19 @@ def calc_adj_feature(x_vect, myData):
                 if term_start <= my_text.index(str) < term_end:
                     continue
             except:
-                print("Error line 94")
-                print("text: ", my_text)
-                print("str: ", str)
+                print()
+				#print("Error line 94")
+                #print("text: ", my_text)
+                #print("str: ", str)'''
                 # print("index: ",row['text'].index(str))
 
             try:
                 dist = abs(my_text.index(str) - my_text.index(row['aspect_term']))
             except ValueError:
-                print("Aspect Term missing in Text")
-                print("id: ", id)
-                print("text: ", my_text)
-                print("aspect: ", row['aspect_term'])
+                #print("Aspect Term missing in Text")
+                #print("id: ", id)
+                #print("text: ", my_text)
+                #print("aspect: ", row['aspect_term'])'''
                 # print("start: ",term_start, " end: ",term_end)
                 # finally:
                 adjClass = 0
@@ -543,7 +578,7 @@ def remove_tags(row):
 
 def do_lemmatization(data_stem):
     # PORTER STEMMER
-    print("Porter Stemmer")
+    #print("Porter Stemmer")
     porter_stemmer = PorterStemmer()
 
     data_stem["text"] = data_stem["text"].apply(do_re_tokenize)

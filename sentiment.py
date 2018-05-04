@@ -19,7 +19,7 @@ import scipy
 re_tokenize = RegexpTokenizer("[\w']+")
 wnl = WordNetLemmatizer()
 stop_words = set(stopwords.words('english'))
-in_data_file = "data2_train.csv"
+in_data_file = "data1_train.csv"
 test_data_file = "Data-1_test.csv"
 
 
@@ -36,9 +36,8 @@ def load_data(in_data_file):
     d_y = data["class"]
 
     '''Feature Extraction'''
-    x_vect = extract_features(data)
-    #print(type(X_vect))
-    #print(X_vect.shape)
+    x_vect_train, x_vect_test = extract_features(data, dataTest)
+    
     #chi2_selector = SelectKBest(chi2, k=4000)
     #x_vect = chi2_selector.fit_transform(X_vect, data['class'])
 	
@@ -46,7 +45,7 @@ def load_data(in_data_file):
     #for col in chi2_selector.get_support(indices=True):
     #    relevantCols.append(X_vect.columns[col])
 
-    x_vect_test = extract_features(dataTest)#.toarray())
+    #x_vect_test = extract_features(dataTest)#.toarray())
     #x_vect_test = x_vect_test[relevantCols]
     # x_vect = myFunc(data)#[["text","aspect_term","term_location"]])
     # print(x_vect)
@@ -57,7 +56,7 @@ def load_data(in_data_file):
     '''Learn & Predict from ML model'''
     #k_neighbor(x_vect, d_y)
     #svm(x_vect, d_y)
-    preds = finalSVM(x_vect, x_vect_test,d_y)#, dataTest['class'])
+    preds = finalSVM(x_vect_train, x_vect_test,d_y)#, dataTest['class'])
 	#naive_bayes(x_vect, d_y)
     #decision_tree(x_vect, d_y)
     # cp_in_data = remove_stopwords(cp_in_data)
@@ -95,14 +94,19 @@ def preprocess(data):
     return data
     #print(list(data))
 	
-def extract_features(data):
-    x_vect = get_vectorized_ngram_data(data[['text','aspect_term']])
-    x_vect = scipy.sparse.csr_matrix(x_vect)
-    x_vect = calc_adj_feature(x_vect, data)
+def extract_features(data, dataTest):
+    x_vect_train, x_vect_test = get_vectorized_ngram_data(data[['text','aspect_term']], dataTest[['text','aspect_term']])
+    x_vect_train = scipy.sparse.csr_matrix(x_vect_train)
+    x_vect_train = calc_adj_feature(x_vect_train, data)
+    #print(x_vect_test.shape)
+    x_vect_test = scipy.sparse.csr_matrix(x_vect_test)
+    #print(x_vect_test.shape)
+    x_vect_test = calc_adj_feature(x_vect_test, dataTest)
     # dimensionality reduction
+
     
 	
-    return x_vect
+    return x_vect_train, x_vect_test
 
 	
 def to_lower(data):
@@ -138,7 +142,7 @@ def remove_stopwords(cp_in_data):
 '''
 
 
-def get_vectorized_ngram_data(txt_asp_data):
+def get_vectorized_ngram_data(txt_asp_data, txt_asp_data_test):
     
     textList = []
     for id,row in txt_asp_data.iterrows():
@@ -156,16 +160,35 @@ def get_vectorized_ngram_data(txt_asp_data):
             #print("aspect 1st word:",do_re_tokenize(row['aspect_term'])[0])
             textList.append(row['text'])
     
+    textListTest = []
+    for id,row in txt_asp_data_test.iterrows():
+        textWords = do_re_tokenize(row['text'])
+        try:
+            aspIndex = textWords.index(do_re_tokenize(row['aspect_term'])[0])
+            xtrWords = 5
+            startIndex = max(aspIndex - xtrWords,0)
+            endIndex = min(aspIndex + xtrWords,len(textWords))
+            textListTest.append(' '.join(textWords[startIndex:endIndex+1]))
+        except:
+            #print(row['text'])
+            #print("textWords:",textWords)
+            #print("aspect:",row['aspect_term'])
+            #print("aspect 1st word:",do_re_tokenize(row['aspect_term'])[0])
+            textListTest.append(row['text'])
+    
+	
     tfidf = TfidfVectorizer(ngram_range=(1, 3))
-    x_vec = tfidf.fit_transform(textList)
+    x_vec_train = tfidf.fit_transform(textList)
+    x_vec_test = tfidf.transform(textListTest)
     # print("Features:",tfidf.get_feature_names())
     # print(x_vec.toarray())
     # idf_sum = [sum(x_vec[i]) for i in range(3602)]
-    return x_vec
+    return x_vec_train, x_vec_test
 
 def finalSVM(X_train, X_test, Y_train):#, Y_test):
     svc = LinearSVC(dual=False)
     svc.fit(X_train, Y_train)
+    #svc.transform()
     preds = svc.predict(X_test)
     #print(svc.score(X_test, Y_test))
     return preds
@@ -232,6 +255,7 @@ def svm(x, y):
 
 
 def calc_adj_feature(x_vect, myData):
+    #print(x_vect.shape)
     text_file = open("pos_words.txt", "r")
     pos_words = text_file.read().split('\n')
     text_file = open("neg_words.txt", "r")
@@ -339,9 +363,13 @@ def calc_adj_feature(x_vect, myData):
     
     myData2 = myData[["adj_class", "adj_dist", "pos_count", "neg_count"]]
     myData2 = scipy.sparse.csr_matrix(myData2)
+    #print(myData2.shape)
+
     #print('x_vect shape:',x_vect.shape)
     #print('myData2 shape:',myData2.shape)
 
+    #print(x_vect.shape)
+	
     return scipy.sparse.hstack((x_vect,myData2)).tocsr()
     # return myData[["aspect_start", "aspect_end", "text_len", "adj_class", "adj_dist", "pos_count", "neg_count", "idf_score", "idf_aspect"]]
 

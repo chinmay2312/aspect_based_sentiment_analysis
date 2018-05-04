@@ -19,34 +19,56 @@ import scipy
 re_tokenize = RegexpTokenizer("[\w']+")
 wnl = WordNetLemmatizer()
 stop_words = set(stopwords.words('english'))
-in_data_file = "data1_train.csv"
-test_data_file = "data1_train.csv"
+in_data_file = "data2_train.csv"
+test_data_file = "Data-1_test.csv"
 
 
 def load_data(in_data_file):
     data = pd.read_csv(in_data_file, skipinitialspace=True)
     dataTest = pd.read_csv(test_data_file, skipinitialspace=True)
-	#PreProcessing
+	
+    '''PreProcessing'''
     data = preprocess(data)
     dataTest = preprocess(dataTest)
     print("Data loaded and preprocessed")
 	
-    data["class"] = data["class"].replace(-1, 2)
+    #data["class"] = data["class"].replace(-1, 2)
     d_y = data["class"]
 
-	#Feature Extraction
+    '''Feature Extraction'''
     x_vect = extract_features(data)
-    x_vect_test = extract_features(dataTest)
+    #print(type(X_vect))
+    #print(X_vect.shape)
+    #chi2_selector = SelectKBest(chi2, k=4000)
+    #x_vect = chi2_selector.fit_transform(X_vect, data['class'])
+	
+    relevantCols = []
+    #for col in chi2_selector.get_support(indices=True):
+    #    relevantCols.append(X_vect.columns[col])
+
+    x_vect_test = extract_features(dataTest)#.toarray())
+    #x_vect_test = x_vect_test[relevantCols]
     # x_vect = myFunc(data)#[["text","aspect_term","term_location"]])
     # print(x_vect)
     # x_vector = tfidf_vectorize(d_x)
     # print(x_vect.shape)
+    print("Features extracted")
+	
+    '''Learn & Predict from ML model'''
     #k_neighbor(x_vect, d_y)
     #svm(x_vect, d_y)
-    finalSVM(x_vect, x_vect_test,d_y, dataTest['class'])
+    preds = finalSVM(x_vect, x_vect_test,d_y)#, dataTest['class'])
 	#naive_bayes(x_vect, d_y)
     #decision_tree(x_vect, d_y)
     # cp_in_data = remove_stopwords(cp_in_data)
+    print("Model trained and class predicted")
+	
+	#Write Output
+    f=open("Chinmay_Gangak_Kislaya_Singh_Data-1.txt","w+")
+    for i in range(len(preds)):
+        strRec = str(i+1) + ";;" + str(preds[i]) + "\n"
+        f.write(strRec)
+    f.close()
 
 def preprocess(data):
     data.text = data.text.str.replace("\[comma\]", ",")
@@ -78,7 +100,7 @@ def extract_features(data):
     x_vect = scipy.sparse.csr_matrix(x_vect)
     x_vect = calc_adj_feature(x_vect, data)
     # dimensionality reduction
-    x_vect = apply_chi2(x_vect, data['class'])
+    
 	
     return x_vect
 
@@ -141,11 +163,12 @@ def get_vectorized_ngram_data(txt_asp_data):
     # idf_sum = [sum(x_vec[i]) for i in range(3602)]
     return x_vec
 
-def finalSVM(X_train, X_test, Y_train, Y_test):
+def finalSVM(X_train, X_test, Y_train):#, Y_test):
     svc = LinearSVC(dual=False)
     svc.fit(X_train, Y_train)
     preds = svc.predict(X_test)
     #print(svc.score(X_test, Y_test))
+    return preds
 	
 def svm(x, y):
     svc = LinearSVC(dual=False)
@@ -166,31 +189,31 @@ def svm(x, y):
         svc.fit(x_train, y_train)
         y_pred = svc.predict(x_test)
         accuracy_list.append(svc.score(x_test, y_test))
-        cm = confusion_matrix(y_test, y_pred, labels=[1, 0, 2])
+        #cm = confusion_matrix(y_test, y_pred, labels=[1, 0, 2])
         # print(cm)
 
-        tp_pos = cm[0][0]
+        #tp_pos = cm[0][0]
         # tn = cm[2][2]
-        fp = cm[0][2]
-        fn = cm[2][0]
+        #fp = cm[0][2]
+        #fn = cm[2][0]
 
-        tp_neg = cm[2][2]
+        #tp_neg = cm[2][2]
 
-        tp_neutral = cm[1][1]
+        #tp_neutral = cm[1][1]
 
-        prec_pos = tp_pos / (cm[0][0] + cm[1][0] + cm[2][0])
-        prec_neg = tp_neg / (cm[0][2] + cm[1][2] + cm[2][2])
+        #prec_pos = tp_pos / (cm[0][0] + cm[1][0] + cm[2][0])
+        #prec_neg = tp_neg / (cm[0][2] + cm[1][2] + cm[2][2])
         # print(tp_neg,cm[0][2],cm[1][2],cm[2][2])
-        prec_neutral = tp_neutral / (cm[0][1] + cm[1][1] + cm[2][1])
-        rec_pos = tp_pos / (cm[0][0] + cm[0][1] + cm[0][2])
-        rec_neg = tp_neg / (cm[2][0] + cm[2][1] + cm[2][2])
-        rec_neutral = tp_neutral / (cm[1][0] + cm[1][1] + cm[1][2])
-        precision_list_pos.append(prec_pos)
-        precision_list_neg.append(prec_neg)
-        precision_list_neutral.append(prec_neutral)
-        recall_list_pos.append(rec_pos)
-        recall_list_neg.append(rec_neg)
-        recall_list_neutral.append(rec_neutral)
+        #prec_neutral = tp_neutral / (cm[0][1] + cm[1][1] + cm[2][1])
+        #rec_pos = tp_pos / (cm[0][0] + cm[0][1] + cm[0][2])
+        #rec_neg = tp_neg / (cm[2][0] + cm[2][1] + cm[2][2])
+        #rec_neutral = tp_neutral / (cm[1][0] + cm[1][1] + cm[1][2])
+        #precision_list_pos.append(prec_pos)
+        #precision_list_neg.append(prec_neg)
+        #precision_list_neutral.append(prec_neutral)
+        #recall_list_pos.append(rec_pos)
+        #recall_list_neg.append(rec_neg)
+        #recall_list_neutral.append(rec_neutral)
 
     accuracy = np.mean(accuracy_list)
     precision_pos = np.mean(precision_list_pos)
